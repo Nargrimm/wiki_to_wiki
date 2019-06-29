@@ -19,18 +19,7 @@ def get_single_page_link(page):
       page_list.append(link["*"])
   return page_list
 
-def dummy_check(start, end):
-  page_start = get_single_page_link(start)
-  page_end = get_single_page_link(end)
-  for link in page_start:
-    if link in page_end:
-      return [start, link, end]
-  return []
-
 def from_page_to_page(start, end):
-  dummy_res = dummy_check(start, end)
-  if dummy_res != []:
-    return dummy_res
   page_done = set()
   page_todo = [start]
   total_request = 0
