@@ -1,56 +1,63 @@
-from bs4 import BeautifulSoup, SoupStrainer
+import json
 import requests
-import urllib
 
-def get_page_link(url):
-  if url.startswith('/wiki/'):
-    url = 'https://en.wikipedia.org' + url
-  print('requesting ' + url)
-  page = requests.get(url)
-  data = page.text
-  soup = BeautifulSoup(data, 'html.parser')
-  url_list = []
-  for link in soup.find_all('a'):
-    if str(link.get('href')).startswith('/wiki/'):
-      url_list.append(urllib.parse.unquote(link.get('href')))
-  return url_list
+def get_single_page_link(page):
+  api_url = "https://fr.wikipedia.org/w/api.php"
+  params = {
+  "action": "parse",
+  "format": "json",
+  "page": page,
+  "prop": "links",
+  }
+  print("requesting : " + page)
+  res = requests.Session().get(url=api_url, params=params)
+  res_json = res.json()
+  links = res_json["parse"]["links"]
+  page_list = []
+  for link in links:
+    if "exists" in link.keys():
+      page_list.append(link["*"])
+  return page_list
 
+def dummy_check(start, end):
+  page_start = get_single_page_link(start)
+  page_end = get_single_page_link(end)
+  for link in page_start:
+    if link in page_end:
+      return [start, link, end]
+  return []
 
-def get_links_from_page_to_page(start, end):
-  #TODO do a sanitizing pass on the end input in case it's not an url or not a wiki url
-  desired_url = '/wiki/' + end
-  if start == end:
-    return [start]
-  url_done = set()
-  url_todo = []
-  parent_link = {}
-  url_todo.append(start)
+def from_page_to_page(start, end):
+  dummy_res = dummy_check(start, end)
+  if dummy_res != []:
+    return dummy_res
+  page_done = set()
+  page_todo = [start]
   total_request = 0
-  while (desired_url not in url_todo and len(url_done) < 1000):
-    current_url = url_todo.pop(0)
-    if current_url in url_done:
+  parent_pages = {}
+  while end not in page_todo and len(page_done) < 1000:
+    current_page = page_todo.pop(0)
+    if current_page in page_done:
       continue
-    url_next = get_page_link(current_url)
+    page_next = get_single_page_link(current_page)
     total_request += 1
-    for url_next in url_next:
-      if url_next not in parent_link.keys():
-        parent_link[url_next] = [current_url]
-      else:
-        parent_link[url_next].append(current_url)
-      url_todo.append(url_next)
-    url_done.add(current_url)
-  print('total_request = ' + str(total_request))
-  if desired_url in parent_link.keys():
-    #For now we assume we don't have collison or loops
-    parent_url = parent_link[desired_url][0]
-    res = [desired_url]
-    while parent_url != start:
-      res.insert(0, parent_url)
-      parent_url = parent_link[parent_url][0]
-    res.insert(0, parent_url)
+    for page in page_next:
+      parent_pages.setdefault(page, []).append(current_page)
+      page_todo.append(page)
+    page_done.add(current_page)
+    print("total requests = " + str(total_request))
+  if end in parent_pages.keys():
+    #For now we assume we don't have collision or loops
+    current_parent = parent_pages[end][0]
+    res = [end]
+    while current_parent != start:
+      res.insert(0, current_parent)
+      current_parent = parent_pages[current_parent][0]
+    res.insert(0, start)
     return res
   else:
-    return 'error'
+    return ['Error']
 
 
-print(get_links_from_page_to_page("https://fr.wikipedia.org/wiki/Emmanuel_Macron", "Lille"))
+print(from_page_to_page("Emmanuel Macron", "Lille"))
+print(from_page_to_page("Obama", "Lille"))
